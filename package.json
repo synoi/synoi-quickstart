@@ -1,0 +1,26 @@
+{
+  "name": "@synoi/start",
+  "version": "0.1.0",
+  "description": "SynOI Gateway bootstrap — `npx @synoi/start init` drops a docker-compose.yml + .env template into your current directory. Three commands to a running gateway.",
+  "license": "UNLICENSED",
+  "homepage": "https://synoi.systems/quickstart",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/foundationx/synoi-quickstart"
+  },
+  "keywords": ["synoi", "gateway", "llm", "quickstart", "ai-tools"],
+  "bin": {
+    "synoi-start": "bin/synoi-start.js"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

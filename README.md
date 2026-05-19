@@ -19,23 +19,33 @@ Zero changes to your tool's code. Change one env var.
 
 ## Start it
 
-### Docker (recommended)
+### Three commands (recommended)
 
 ```bash
-git clone https://github.com/synoi/synoi-quickstart
+npx @synoi/start init
+cd synoi
+docker compose up
+```
+
+That's the whole flow. `npx @synoi/start init` writes a `docker-compose.yml` + an `.env` (with a fresh 32-byte admin key, mode 0600) into `./synoi/`. `docker compose up` pulls `ghcr.io/foundationx/synoi-gateway:latest` and starts the gateway on port 3000.
+
+Gateway: `http://localhost:3000` · Dashboard: `http://localhost:3000/dashboard` (admin key in `.env`).
+
+### Docker Compose by hand
+
+```bash
+git clone https://github.com/foundationx/synoi-quickstart
 cd synoi-quickstart
 docker compose up
 ```
 
-Gateway is now at `http://localhost:3000`. Dashboard at `http://localhost:3000/dashboard` (admin key in `.env`).
-
-### From source (no Docker)
+### From source (developers)
 
 ```bash
-git clone https://github.com/synoi/synoi-gateway
+git clone https://github.com/foundationx/synoi-gateway
 cd synoi-gateway
-npm install
-npm run dev
+yarn install
+yarn dev
 ```
 
 ## Then point your tool at it

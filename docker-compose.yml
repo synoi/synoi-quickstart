@@ -1,34 +1,41 @@
+# SynOI Gateway — local dev / quickstart.
+#
+# This file pulls the published image from GitHub Container Registry.
+# For developers running from source: see README.md "From source" section.
+
 services:
   gateway:
-    image: node:20-alpine
+    image: ghcr.io/foundationx/synoi-gateway:latest
     container_name: synoi-gateway
-    working_dir: /app
-    # Mount the gateway source (cloned alongside this repo) so changes hot-reload.
-    # For a stable image instead, build a Dockerfile against the gateway repo
-    # and replace this volume mount with `image: synoi/gateway:latest`.
-    volumes:
-      - ../synoi-gateway:/app
-      - synoi-data:/data
+    restart: unless-stopped
+    pull_policy: always
     environment:
-      - SYNOI_DATA_DIR=/data
+      - SYNOI_DATA_DIR=/data/synoi
+      - SYNOI_VAULT_DIR=/data/vault
       - SYNOI_ADMIN_KEY=${SYNOI_ADMIN_KEY:-change-me-please-32-chars-or-longer}
       - SYNOI_ANTHROPIC_UPSTREAM=https://api.anthropic.com
-      # Optional — opt-in features
       - SYNOI_KB_ENABLE=0
       - SYNOI_HOUSE_STYLE_ENABLE=0
       - SYNOI_SHRINK_ENABLE=1
-      - SYNOI_ARBITRAGE_ENABLE=0   # set to 1 with GROQ_API_KEY to enable Groq arbitrage
+      - SYNOI_ARBITRAGE_ENABLE=0
+      - SYNOI_QUIET_FIRST_RUN=1
+      - PORT=3000
+      # - SYNOI_LICENSE_KEY=
       # - GROQ_API_KEY=
       # - SYNOI_SIGNING_KEY_PRIVATE=
       # - SYNOI_SIGNING_KEY_PUBLIC=
+    volumes:
+      - synoi-data:/data/synoi
+      - synoi-vault:/data/vault
     ports:
       - "3000:3000"
-    command: sh -c "npm install --omit=dev && npm run dev"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O-", "http://localhost:3000/health"]
       interval: 10s
       timeout: 3s
       retries: 5
+      start_period: 30s
 
 volumes:
   synoi-data:
+  synoi-vault:
