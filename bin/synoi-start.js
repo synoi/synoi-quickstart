@@ -31,6 +31,13 @@ function help() {
     '  npx @synoi/start link          Pair this machine with your SynOI account',
     '                                 (device-flow). Writes a fresh license key',
     '                                 to ~/.synoi/license.key on approval.',
+    '  npx @synoi/start login         Alias for `link`. Optionally binds the new',
+    '                                 license to a gateway profile chosen in the',
+    '                                 portal at approval time (cached in',
+    '                                 ~/.synoi/profile_id).',
+    '                                 Pass --gateway <url> (or set',
+    '                                 SYNOI_GATEWAY_URL) to pair with a local',
+    '                                 gateway instead of api.synoi.systems.',
     '  npx @synoi/start --help        Show this message.',
     '',
     'After init:',
@@ -50,11 +57,11 @@ if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') {
   process.exit(0)
 }
 
-if (cmd === 'link') {
+if (cmd === 'link' || cmd === 'login') {
   runLink().then(
     () => process.exit(0),
     (err) => {
-      process.stderr.write(`\nlink failed: ${err.message}\n`)
+      process.stderr.write(`\n${cmd} failed: ${err.message}\n`)
       process.exit(1)
     },
   )
@@ -122,19 +129,46 @@ function runInit() {
   ].join('\n'))
 }
 
-// ── synoi-start link ───────────────────────────────────────────────────────
+// ── synoi-start link / login ──────────────────────────────────────────────
 //
 // RFC 8628 device-authorization-grant flow:
 //   1. POST /v1/device/code           → device_code + user_code
 //   2. Show user_code, open browser to /device?user_code=...
 //   3. Poll GET /v1/device/poll/<device_code> every `interval`s
 //   4. On approved → write license to ~/.synoi/license.key (mode 0600)
+//
+// PR 4 — target selection:
+//   - Default target is the cloud control plane (api.synoi.systems).
+//   - Setting SYNOI_GATEWAY_URL (or passing --gateway <url>) redirects the
+//     flow to a LOCAL gateway running PR 4's /v1/device routes. The gateway
+//     issues the license directly with profile_id bound at approval, no CP
+//     involvement. Useful for edge deployments behind firewalls or for users
+//     who want all licensing to stay on their own hardware.
 
-const API_BASE = process.env.SYNOI_CONTROL_URL || 'https://api.synoi.systems'
+function resolveTarget() {
+  // --gateway <url> takes precedence; then SYNOI_GATEWAY_URL; then SYNOI_CONTROL_URL.
+  const gwFlagIdx = args.indexOf('--gateway')
+  if (gwFlagIdx >= 0 && args[gwFlagIdx + 1]) {
+    return { base: args[gwFlagIdx + 1].replace(/\/+$/, ''), kind: 'gateway' }
+  }
+  if (process.env.SYNOI_GATEWAY_URL) {
+    return { base: process.env.SYNOI_GATEWAY_URL.replace(/\/+$/, ''), kind: 'gateway' }
+  }
+  return {
+    base: (process.env.SYNOI_CONTROL_URL || 'https://api.synoi.systems').replace(/\/+$/, ''),
+    kind: 'control_plane',
+  }
+}
 
 async function runLink() {
   const out = process.stdout
-  out.write('\nLinking this machine to your SynOI account…\n\n')
+  const target = resolveTarget()
+  const API_BASE = target.base
+  if (target.kind === 'gateway') {
+    out.write(`\nLinking this machine to your SynOI gateway at ${API_BASE}…\n\n`)
+  } else {
+    out.write('\nLinking this machine to your SynOI account…\n\n')
+  }
 
   const clientHint = `${os.userInfo().username}@${os.hostname()} (synoi-start)`
   const startRes = await httpJson('POST', `${API_BASE}/v1/device/code`, { client_hint: clientHint })
@@ -168,12 +202,29 @@ async function runLink() {
       fs.mkdirSync(dir, { recursive: true })
       const keyPath = path.join(dir, 'license.key')
       fs.writeFileSync(keyPath, r.body.license_key + '\n', { mode: 0o600 })
-      out.write(`  ✓ Wrote license key to ${keyPath} (mode 0600)\n\n`)
-      out.write(`  tenant_id: ${r.body.tenant_id}\n`)
+      out.write(`  ✓ Wrote license key to ${keyPath} (mode 0600)\n`)
+
+      // PR 3: persist the chosen profile binding so the CLI can show it on
+      // subsequent runs. If portal didn't bind a profile, clear any stale
+      // value from a previous pairing so the user isn't misled.
+      const profilePath = path.join(dir, 'profile_id')
+      if (r.body.profile_id) {
+        fs.writeFileSync(profilePath, r.body.profile_id + '\n', { mode: 0o600 })
+        out.write(`  ✓ Wrote profile binding to ${profilePath} (mode 0600)\n`)
+      } else if (fs.existsSync(profilePath)) {
+        try { fs.unlinkSync(profilePath) } catch { /* ignore */ }
+      }
+
+      out.write(`\n  tenant_id:  ${r.body.tenant_id}\n`)
+      if (r.body.profile_id)        out.write(`  profile_id: ${r.body.profile_id}\n`)
       if (r.body.approved_by_email) out.write(`  approved by: ${r.body.approved_by_email}\n`)
       out.write(`\n  Next steps:\n\n`)
       out.write(`    export SYNOI_API_KEY="$(cat ~/.synoi/license.key)"\n`)
       out.write(`    export ANTHROPIC_BASE_URL=https://gateway.synoi.systems/anthropic\n\n`)
+      if (r.body.profile_id) {
+        out.write(`  Profile binding is metadata only — to make the gateway use this profile,\n`)
+        out.write(`  mark it active at https://app.synoi.systems/dashboard/profiles\n\n`)
+      }
       out.write(`  Then run your tool. Receipts will appear at https://app.synoi.systems/dashboard/receipts.\n\n`)
       return
     }

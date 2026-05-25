@@ -59,6 +59,25 @@ claude   # or however you launch it
 
 Works for both API-key and subscription (OAuth) modes.
 
+### Hermes Agent (Nous Research)
+
+Hermes speaks OpenAI-compatible HTTP, so it points at the gateway the same way Cursor does. During `hermes setup`, when prompted for the LLM provider URL, use:
+
+```
+http://localhost:3000/v1
+```
+
+Or, if you've already run `hermes setup`, edit `~/.hermes/config.toml`:
+
+```toml
+[provider]
+type     = "openai"
+base_url = "http://localhost:3000/v1"
+api_key  = "<your-synoi-license-key>"
+```
+
+You get the same governance + signed receipts as any other client. **Hermes' agent-generated skills will be signed by SynOI in a future release** — see [SKILL_SIGNING_SPEC.md](../synoi-brain/libraries/v1/SKILL_SIGNING_SPEC.md). For now, every LLM call through Hermes already produces a receipt.
+
 ### Cursor
 
 Cursor → Settings → Models → Override OpenAI Base URL → `http://localhost:3000/v1`
@@ -130,6 +149,54 @@ open http://localhost:3000/verify/rcpt_xxx_xxxxx
 - **Add a risk policy** — see `examples/risk-policy.sh`
 - **Enable HITL on tool execution** — install `@synoi/sdk` (any agent) or `@synoi/openclaw-guard` (OpenClaw)
 - **Production deployment** — see `docs/DEPLOY.md` in the gateway repo for Docker / systemd / Cloudflare Tunnel patterns
+
+## Connecting an agent to a gateway on a different machine
+
+Common pattern: the agent runs in a cloud VPS (Hostinger / DigitalOcean / Modal), but you want it to reach a SynOI gateway running on your home / office network. Or vice-versa: the gateway is in the cloud and your laptop is at a coffee shop. Three patterns we recommend, in order of operational simplicity:
+
+### Tailscale (recommended for solo + small teams)
+
+[Tailscale](https://tailscale.com) creates a private mesh between your machines using WireGuard. Each machine gets a stable `100.x.x.x` IP that follows it across networks.
+
+```bash
+# On the gateway host:
+tailscale up
+# Note the assigned name (e.g. "mac.tail-scale.ts.net")
+
+# On the agent host:
+tailscale up
+export ANTHROPIC_BASE_URL=http://mac.tail-scale.ts.net:3000/anthropic
+```
+
+Free for up to 100 devices. Outbound-only — no firewall holes. Works across NAT, restrictive Wi-Fi, the coffee shop.
+
+### Twingate (recommended for teams with identity-aware access policies)
+
+[Twingate](https://www.twingate.com) is the enterprise-positioned equivalent. Identity-based zero-trust access; integrates with your identity provider (Okta, Google Workspace, etc.). Same outbound-only connector pattern, but with team-level access policies layered on top.
+
+NetworkChuck demonstrated this exact pattern on YouTube: Hermes agent in Hostinger VPS reaches his home studio network through a Twingate headless client.
+
+```bash
+# On the gateway host: install Twingate connector
+curl https://binaries.twingate.com/connector/setup.sh | sudo bash
+
+# On the agent host: install Twingate client + auth via SSO
+# Then the gateway is reachable at its private hostname:
+export ANTHROPIC_BASE_URL=http://gateway.internal:3000/anthropic
+```
+
+### Direct LAN + mDNS (zero-deps, same network only)
+
+If both machines are on the same LAN (home or office), just use the gateway's `.local` hostname — the gateway announces itself via mDNS / Bonjour as `synoi-gateway.local`:
+
+```bash
+# On the agent host (Mac, modern Windows, or Linux with Avahi):
+export ANTHROPIC_BASE_URL=http://synoi-gateway.local:3000/anthropic
+```
+
+No setup, no third-party service. Breaks when either machine moves to a different network — for that, use Tailscale or Twingate.
+
+We don't ship our own peer-transport solution; pick whichever fits your IT environment.
 
 ## What if my tool isn't in the compat list?
 
