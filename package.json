@@ -20,6 +20,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "scripts": {
+    "test": "node test/quickstart.test.js"
+  },
   "engines": {
     "node": ">=18"
   }
