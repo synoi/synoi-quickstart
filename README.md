@@ -13,7 +13,7 @@ Point any AI tool that speaks OpenAI or Anthropic protocol at the gateway and im
 - **Per-tenant budgets** with webhook alerts when you cross thresholds
 - **Dashboard** at `http://localhost:3000/dashboard`
 - **Prometheus metrics** at `http://localhost:3000/metrics`
-- **HITL approval gates** on dangerous tool actions (when paired with `@synoi/sdk` or `@synoi/openclaw-guard`)
+- **HITL approval gates** on dangerous tool actions (when paired with `@synoi/sdk`, published; `@synoi/openclaw-guard` and `@synoi/guard` are in-repo but not yet on npm)
 
 Zero changes to your tool's code. Change one env var.
 
@@ -34,7 +34,7 @@ Gateway: `http://localhost:3000` · Dashboard: `http://localhost:3000/dashboard`
 ### Docker Compose by hand
 
 ```bash
-git clone https://github.com/foundationx/synoi-quickstart
+git clone https://github.com/synoi/synoi-quickstart
 cd synoi-quickstart
 docker compose up
 ```
