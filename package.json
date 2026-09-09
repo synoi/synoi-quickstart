@@ -6,7 +6,7 @@
   "homepage": "https://synoi.systems/quickstart",
   "repository": {
     "type": "git",
-    "url": "https://github.com/foundationx/synoi-quickstart"
+    "url": "git+https://github.com/synoi/synoi-quickstart.git"
   },
   "keywords": ["synoi", "gateway", "llm", "quickstart", "ai-tools"],
   "bin": {
