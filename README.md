@@ -1,25 +1,92 @@
 # synoi-quickstart
 
-5-minute setup for the SynOI gateway — the drop-in trust layer for AI tools.
+Two ways to run SynOI locally: **Gateway Lite**, which is free and works with the
+commands below, and the **licensed SynOI Gateway**, which needs an Operator or
+Team license.
 
-## What this gets you
+| | Gateway Lite | SynOI Gateway |
+|---|---|---|
+| Price | Free, Apache-2.0 | 14-day trial, then Operator or Team |
+| What it governs | Actions your code hands it via `gate()` | LLM traffic, by base-URL swap, plus actions |
+| Account | None | SynOI account |
+| Network | None required | Control plane for licensing |
+| Install | `npx @synoi/gateway-lite` | Container image, see below |
 
-Point any AI tool that speaks OpenAI or Anthropic protocol at the gateway and immediately get:
+Lite is not a trial of the Gateway and not a crippled build of it. It is a
+smaller product: local approval with operator-signed receipts. It does not proxy
+LLM calls, so it has no cache, no cost routing, and no base-URL swap. If you came
+here to put a governance layer in front of Claude Code or Cursor, that is the
+licensed Gateway.
 
-- **L1/L2/L3 cache** that survives restarts
-- **60%+ input-token reduction** via lossless body-shrink
-- **Cost routing** (cheap models for trivial queries, premium for complex)
-- **Decision Receipts** — every call signed and publicly verifiable
-- **Per-tenant budgets** with webhook alerts when you cross thresholds
-- **Dashboard** at `http://localhost:3000/dashboard`
-- **Prometheus metrics** at `http://localhost:3000/metrics`
-- **HITL approval gates** on dangerous tool actions (when paired with `@synoi/sdk`, published; `@synoi/openclaw-guard` and `@synoi/guard` are in-repo but not yet on npm)
+## Gateway Lite (free, no account)
 
-Zero changes to your tool's code. Change one env var.
+```bash
+npm i @synoi/sdk
+npx @synoi/gateway-lite
+```
 
-## Start it
+The daemon listens on `http://127.0.0.1:8787`. Open
+`http://127.0.0.1:8787/local/dashboard` to enroll your operator identity and to
+approve or deny pending actions.
 
-### Three commands (recommended)
+Then gate an action in your own code:
+
+```ts
+import { gate } from '@synoi/sdk'
+
+await gate(
+  {
+    action_kind: 'command',
+    args: { to: 'ops@example.com', subject: 'deploy complete' },
+    daemonUrl: 'http://127.0.0.1:8787',
+  },
+  async () => {
+    // runs only after you approve it in the dashboard
+    await sendEmail(...)
+  },
+)
+```
+
+**Set `daemonUrl` (or `SYNOI_DAEMON_URL`) explicitly.** As published today,
+`@synoi/sdk` defaults to port 7990 while `@synoi/gateway-lite` listens on 8787,
+so the default does not reach the daemon. The two will be aligned in a later
+release; until then, name the port.
+
+Receipts are self-signed with an Ed25519 key generated on your machine and never
+transmitted. Verify one offline with the published `@synoi/verify`:
+
+```ts
+import { verifyReceiptByScheme } from '@synoi/verify'
+
+const result = await verifyReceiptByScheme({
+  receipt,                 // from GET /local/receipts/:oid
+  gap_ed25519_pub: pubkey,
+})
+```
+
+That proves the receipt was signed by the key on your machine and has not been
+altered since. It does not prove to anyone else that the key belongs to a party
+they should trust: the neutral resolver that would establish that is not live.
+Do not call a self-signed receipt independently verified.
+
+Lite's own status, key custody details and platform caveats are in its
+[package README](https://www.npmjs.com/package/@synoi/gateway-lite). It is
+labeled PARTIAL, so read that before relying on it for more than local use.
+
+## SynOI Gateway (licensed)
+
+The Gateway is the governed LLM proxy. Point any tool that speaks the Anthropic
+or OpenAI protocol at it and get caching, lossless body-shrink, cost routing
+across models, signed Decision Receipts, per-tenant budgets with webhook alerts,
+a dashboard, Prometheus metrics, and HITL approval gates.
+
+It is commercial software: a 14-day trial, then Operator or Team. Start at
+[app.synoi.systems](https://app.synoi.systems).
+
+**Availability note.** The container image referenced by the compose files in
+this repo is not published publicly. Until trial image distribution ships, the
+`init` command below writes a valid compose file that cannot pull yet. Use
+Gateway Lite for a local install that works today.
 
 ```bash
 npx @synoi/start init
@@ -27,182 +94,64 @@ cd synoi
 docker compose up
 ```
 
-That's the whole flow. `npx @synoi/start init` writes a `docker-compose.yml` + an `.env` (with a fresh 32-byte admin key, mode 0600) into `./synoi/`. `docker compose up` pulls `ghcr.io/foundationx/synoi-gateway:latest` and starts the gateway on port 3000.
+`init` writes `docker-compose.yml` and an `.env` with a freshly generated 32-byte
+admin key at mode 0600. The Gateway serves on port 3000, with its dashboard at
+`/dashboard` behind the admin key.
 
-Gateway: `http://localhost:3000` · Dashboard: `http://localhost:3000/dashboard` (admin key in `.env`).
-
-### Docker Compose by hand
+### Pairing a licensed install
 
 ```bash
-git clone https://github.com/synoi/synoi-quickstart
-cd synoi-quickstart
-docker compose up
+npx @synoi/start link
 ```
 
-### From source (developers)
+An RFC 8628 device flow: it prints a code, you approve in the browser, and it
+writes the license key to `~/.synoi/license.key`. Pass `--gateway <url>` (or set
+`SYNOI_GATEWAY_URL`) to pair against a local gateway rather than the control
+plane.
+
+### Pointing tools at a licensed Gateway
 
 ```bash
-git clone https://github.com/foundationx/synoi-gateway
-cd synoi-gateway
-yarn install
-yarn dev
-```
-
-## Then point your tool at it
-
-### Claude Code
-
-```bash
+# Claude Code (API key or subscription OAuth)
 export ANTHROPIC_BASE_URL=http://localhost:3000/anthropic
-claude   # or however you launch it
-```
 
-Works for both API-key and subscription (OAuth) modes.
-
-### Hermes Agent (Nous Research)
-
-Hermes speaks OpenAI-compatible HTTP, so it points at the gateway the same way Cursor does. During `hermes setup`, when prompted for the LLM provider URL, use:
-
-```
-http://localhost:3000/v1
-```
-
-Or, if you've already run `hermes setup`, edit `~/.hermes/config.toml`:
-
-```toml
-[provider]
-type     = "openai"
-base_url = "http://localhost:3000/v1"
-api_key  = "<your-synoi-license-key>"
-```
-
-You get the same governance + signed receipts as any other client. **Hermes' agent-generated skills will be signed by SynOI in a future release** — see [SKILL_SIGNING_SPEC.md](../synoi-brain/libraries/v1/SKILL_SIGNING_SPEC.md). For now, every LLM call through Hermes already produces a receipt.
-
-### Cursor
-
-Cursor → Settings → Models → Override OpenAI Base URL → `http://localhost:3000/v1`
-
-### Aider
-
-```bash
+# OpenAI-protocol tools: Cursor, Aider, Continue.dev, Hermes
 export OPENAI_API_BASE=http://localhost:3000/v1
-aider
 ```
 
-### Continue.dev
-
-`~/.continue/config.json`:
-```json
-{
-  "models": [{
-    "title": "via SynOI",
-    "provider": "openai",
-    "apiBase": "http://localhost:3000/v1",
-    "model": "claude-opus-4-7"
-  }]
-}
-```
-
-### Anthropic / OpenAI SDK (any language)
+Cursor: Settings, then Models, then Override OpenAI Base URL. Continue.dev: set
+`apiBase` in `~/.continue/config.json`. Hermes: set `base_url` under `[provider]`
+in `~/.hermes/config.toml`. Any SDK in any language takes the same base URL:
 
 ```python
-# Python
 from anthropic import Anthropic
 client = Anthropic(base_url="http://localhost:3000/anthropic")
 ```
 
-```typescript
-// TypeScript
-import Anthropic from "@anthropic-ai/sdk"
-const client = new Anthropic({ baseURL: "http://localhost:3000/anthropic" })
-```
+Responses carry `X-SynOI-Receipt-Id`; open `/verify/<id>` to check one.
 
-For the full list of 17+ tools tested, see [`docs/COMPAT-MATRIX.md`](https://github.com/synoi/synoi-gateway/blob/main/docs/COMPAT-MATRIX.md) in the gateway repo.
+## Reaching a gateway on another machine
 
-## Verify it's working
+Either product binds to localhost by default. To reach one from a different
+machine, in order of operational simplicity:
 
-Hit the gateway from any of the tools above, then check the dashboard:
+- **Tailscale** for solo and small teams. A WireGuard mesh, stable `100.x.x.x`
+  addresses that follow the machine, outbound only, free up to 100 devices.
+- **Twingate** when you want identity-aware access policies tied to Okta or
+  Google Workspace. Same outbound-only connector shape.
+- **LAN plus mDNS**, same network only: the licensed Gateway announces itself as
+  `synoi-gateway.local`.
 
-```
-http://localhost:3000/dashboard
-```
+We do not ship a peer transport. Pick whatever fits your environment.
 
-You'll see cache hit rate, cost saved, tier distribution, latency p50/p95, and the receipt audit trail.
+## Examples
 
-Or grab a receipt ID from a response header and verify it cryptographically:
+The scripts in `examples/` target the licensed Gateway's admin and proxy routes
+(budgets, risk policy, receipt verification), so they need a running Gateway.
+`04-verify-receipt.sh` is the exception: it verifies a receipt with openssl and
+works against any receipt you can fetch.
 
-```bash
-curl -i http://localhost:3000/anthropic/v1/messages \
-  -H "x-api-key: sk-ant-..." \
-  -H "Content-Type: application/json" \
-  -H "anthropic-version: 2023-06-01" \
-  -d '{"model": "claude-opus-4-7", "max_tokens": 16, "messages": [{"role": "user", "content": "hi"}]}'
+## License
 
-# Response includes: X-SynOI-Receipt-Id: rcpt_xxx_xxxxx
-# Open in browser:
-open http://localhost:3000/verify/rcpt_xxx_xxxxx
-```
-
-## Next steps
-
-- **Set a budget** — see `examples/set-budget.sh`
-- **Add a risk policy** — see `examples/risk-policy.sh`
-- **Enable HITL on tool execution** — install `@synoi/sdk` (any agent) or `@synoi/openclaw-guard` (OpenClaw)
-- **Production deployment** — see `docs/DEPLOY.md` in the gateway repo for Docker / systemd / Cloudflare Tunnel patterns
-
-## Connecting an agent to a gateway on a different machine
-
-Common pattern: the agent runs in a cloud VPS (Hostinger / DigitalOcean / Modal), but you want it to reach a SynOI gateway running on your home / office network. Or vice-versa: the gateway is in the cloud and your laptop is at a coffee shop. Three patterns we recommend, in order of operational simplicity:
-
-### Tailscale (recommended for solo + small teams)
-
-[Tailscale](https://tailscale.com) creates a private mesh between your machines using WireGuard. Each machine gets a stable `100.x.x.x` IP that follows it across networks.
-
-```bash
-# On the gateway host:
-tailscale up
-# Note the assigned name (e.g. "mac.tail-scale.ts.net")
-
-# On the agent host:
-tailscale up
-export ANTHROPIC_BASE_URL=http://mac.tail-scale.ts.net:3000/anthropic
-```
-
-Free for up to 100 devices. Outbound-only — no firewall holes. Works across NAT, restrictive Wi-Fi, the coffee shop.
-
-### Twingate (recommended for teams with identity-aware access policies)
-
-[Twingate](https://www.twingate.com) is the enterprise-positioned equivalent. Identity-based zero-trust access; integrates with your identity provider (Okta, Google Workspace, etc.). Same outbound-only connector pattern, but with team-level access policies layered on top.
-
-NetworkChuck demonstrated this exact pattern on YouTube: Hermes agent in Hostinger VPS reaches his home studio network through a Twingate headless client.
-
-```bash
-# On the gateway host: install Twingate connector
-curl https://binaries.twingate.com/connector/setup.sh | sudo bash
-
-# On the agent host: install Twingate client + auth via SSO
-# Then the gateway is reachable at its private hostname:
-export ANTHROPIC_BASE_URL=http://gateway.internal:3000/anthropic
-```
-
-### Direct LAN + mDNS (zero-deps, same network only)
-
-If both machines are on the same LAN (home or office), just use the gateway's `.local` hostname — the gateway announces itself via mDNS / Bonjour as `synoi-gateway.local`:
-
-```bash
-# On the agent host (Mac, modern Windows, or Linux with Avahi):
-export ANTHROPIC_BASE_URL=http://synoi-gateway.local:3000/anthropic
-```
-
-No setup, no third-party service. Breaks when either machine moves to a different network — for that, use Tailscale or Twingate.
-
-We don't ship our own peer-transport solution; pick whichever fits your IT environment.
-
-## What if my tool isn't in the compat list?
-
-If your tool speaks the Anthropic Messages API or OpenAI Chat Completions API and lets you set a base URL, it works. If it doesn't have a config option, try:
-
-- `HTTPS_PROXY=http://localhost:3000` (for tools that respect proxy env)
-- A `127.0.0.1 api.anthropic.com` hosts entry + TLS on 443 (last resort)
-
-Or open an issue and we'll add a row.
+Apache-2.0. This repo holds only the bootstrap CLI and templates, no product
+code.

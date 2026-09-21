@@ -41,6 +41,7 @@ function tmpDir() {
   ok('A1: --help mentions init', r.stdout.includes('init'))
   ok('A1: --help mentions link', r.stdout.includes('link'))
   ok('A1: --help mentions docker compose', r.stdout.toLowerCase().includes('docker'))
+  ok('A1: --help mentions the free lite path', r.stdout.includes('lite'))
 }
 
 {
@@ -79,6 +80,20 @@ function tmpDir() {
   ok('C1: .env created', fs.existsSync(path.join(target, '.env')))
   ok('C1: stdout mentions localhost:3000', r.stdout.includes('localhost:3000'))
   ok('C1: stdout mentions docker compose up', r.stdout.includes('docker compose up'))
+  // The Gateway image is not published publicly yet, so init must say so and
+  // must point at the free path that does work today. Without this, the whole
+  // flow ends in an unexplained docker pull failure.
+  ok('C1: stdout says the image is not published publicly yet',
+    r.stdout.includes('not published publicly'))
+  ok('C1: stdout points at the free lite path', r.stdout.includes('start lite'))
+  ok('C1: generated compose carries the same caveat',
+    fs.readFileSync(path.join(target, 'docker-compose.yml'), 'utf8').includes('NOT published publicly'))
+  ok('C1: generated .env states there is no free tier', (() => {
+    const env = fs.readFileSync(path.join(target, '.env'), 'utf8')
+    // The old text told operators to "leave blank for free-tier features",
+    // which is exactly the promise the 2026-09-15 pricing decision retired.
+    return /no free tier/i.test(env) && !/leave blank for free/i.test(env)
+  })())
   fs.rmSync(base, { recursive: true, force: true })
 }
 
@@ -164,6 +179,29 @@ function tmpDir() {
   ok('I1: env.template exists', fs.existsSync(path.join(templatesDir, 'env.template')))
   const envTemplate = fs.readFileSync(path.join(templatesDir, 'env.template'), 'utf8')
   ok('I1: env.template contains placeholder', envTemplate.includes('{{ADMIN_KEY}}'))
+}
+
+// ── J: lite — the free path ──────────────────────────────────────────────────
+
+{
+  const r = run('lite')
+  ok('J1: lite exits 0', r.status === 0, `stderr: ${r.stderr}`)
+  ok('J1: lite names the package', r.stdout.includes('@synoi/gateway-lite'))
+  ok('J1: lite names the sdk', r.stdout.includes('@synoi/sdk'))
+  // The daemon listens on 8787 while @synoi/sdk still defaults to 7990, so the
+  // port has to be stated or the documented flow silently fails to connect.
+  ok('J1: lite gives the daemon port', r.stdout.includes('127.0.0.1:8787'))
+  ok('J1: lite warns about the sdk default port', r.stdout.includes('7990'))
+  ok('J1: lite says it does not proxy LLM calls', r.stdout.includes('does NOT proxy'))
+}
+
+{
+  // lite is informational: it must not create files or install anything.
+  const base = tmpDir()
+  const r = spawnSync(process.execPath, [CLI, 'lite'], { encoding: 'utf8', timeout: 5_000, cwd: base })
+  ok('J2: lite exits 0 in an empty cwd', r.status === 0)
+  ok('J2: lite creates nothing', fs.readdirSync(base).length === 0)
+  fs.rmSync(base, { recursive: true, force: true })
 }
 
 // ── Done ──────────────────────────────────────────────────────────────────────

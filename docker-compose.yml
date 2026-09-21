@@ -1,7 +1,9 @@
-# SynOI Gateway — local dev / quickstart.
+# SynOI Gateway: local setup for the LICENSED product.
 #
-# This file pulls the published image from GitHub Container Registry.
-# For developers running from source: see README.md "From source" section.
+# The Gateway is commercial software: a 14-day trial, then Operator or Team.
+# The image below is NOT published publicly yet, so `docker compose up` cannot
+# pull it today. For a free local install that works now, run
+# `npx @synoi/start lite` (@synoi/gateway-lite, Apache-2.0).
 
 services:
   gateway:

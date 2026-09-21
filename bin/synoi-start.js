@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * synoi-start — bootstrap a SynOI gateway in the current directory.
+ * synoi-start - bootstrap a SynOI gateway in the current directory.
  *
+ *   npx @synoi/start lite         print the free Gateway Lite path
  *   npx @synoi/start init [dir]   default dir: ./synoi
  *   npx @synoi/start --help
  *
- * Writes docker-compose.yml + .env from bundled templates, then prints
- * the next two commands the user needs to run.
+ * `init` writes docker-compose.yml + .env from bundled templates for the
+ * LICENSED SynOI Gateway. `lite` points at @synoi/gateway-lite, which is a
+ * separate free product needing no account, no license and no image.
  */
 
 'use strict'
@@ -23,11 +25,20 @@ const os = require('node:os')
 function help() {
   process.stdout.write([
     '',
-    'synoi-start — bootstrap a SynOI gateway in the current directory.',
+    'synoi-start - bootstrap a SynOI gateway in the current directory.',
     '',
-    'Usage:',
+    'Free, works today:',
+    '  npx @synoi/start lite          Show how to run Gateway Lite: local',
+    '                                 governed-action approval with',
+    '                                 operator-signed receipts. No account, no',
+    '                                 license, no container image.',
+    '',
+    'Licensed SynOI Gateway (14-day trial, then Operator or Team):',
     '  npx @synoi/start init [dir]    Create dir (default: ./synoi) with',
     '                                 docker-compose.yml + .env template.',
+    '                                 NOTE: the Gateway container image is not',
+    '                                 published publicly yet, so the generated',
+    '                                 compose file cannot pull today.',
     '  npx @synoi/start link          Pair this machine with your SynOI account',
     '                                 (device-flow). Writes a fresh license key',
     '                                 to ~/.synoi/license.key on approval.',
@@ -38,9 +49,10 @@ function help() {
     '                                 Pass --gateway <url> (or set',
     '                                 SYNOI_GATEWAY_URL) to pair with a local',
     '                                 gateway instead of api.synoi.systems.',
+    '',
     '  npx @synoi/start --help        Show this message.',
     '',
-    'After init:',
+    'After init (licensed Gateway):',
     '  cd synoi',
     '  docker compose up',
     '',
@@ -67,6 +79,8 @@ if (cmd === 'link' || cmd === 'login') {
   )
 } else if (cmd === 'init') {
   runInit()
+} else if (cmd === 'lite') {
+  runLite()
 } else {
   process.stderr.write(`Unknown command: ${cmd}\n`)
   help()
@@ -125,6 +139,45 @@ function runInit() {
     '    export OPENAI_API_BASE=http://localhost:3000/v1              # OpenAI SDKs',
     '',
     '  Full guide: https://synoi.systems/quickstart',
+    '',
+    '  NOTE: the SynOI Gateway is licensed software (14-day trial, then Operator',
+    '  or Team) and its container image is not published publicly yet, so',
+    '  `docker compose up` cannot pull it today. For a free local install that',
+    '  works right now, run:  npx @synoi/start lite',
+    '',
+  ].join('\n'))
+}
+
+// ── synoi-start lite ──────────────────────────────────────────────────────
+//
+// Gateway Lite is a separate, free product (@synoi/gateway-lite, Apache-2.0):
+// local governed-action approval with operator-signed receipts, no account and
+// no network call. We print the commands rather than spawning npx, so this
+// package keeps zero runtime dependencies and installs nothing implicitly.
+
+function runLite() {
+  process.stdout.write([
+    '',
+    '  Gateway Lite: free, no account, no license, no container image.',
+    '',
+    '  Run:',
+    '',
+    '    npm i @synoi/sdk',
+    '    npx @synoi/gateway-lite',
+    '',
+    '  Daemon:     http://127.0.0.1:8787',
+    '  Dashboard:  http://127.0.0.1:8787/local/dashboard',
+    '',
+    '  Name the port explicitly in your code or environment: as published',
+    '  today @synoi/sdk defaults to 7990 while the daemon listens on 8787.',
+    '',
+    '    export SYNOI_DAEMON_URL=http://127.0.0.1:8787',
+    '',
+    '  Lite governs actions your code hands it via gate(). It does NOT proxy',
+    '  LLM calls, so it has no cache, no cost routing and no base-URL swap.',
+    '  Those belong to the licensed Gateway (npx @synoi/start init).',
+    '',
+    '  Details: https://www.npmjs.com/package/@synoi/gateway-lite',
     '',
   ].join('\n'))
 }
