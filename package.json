@@ -1,6 +1,6 @@
 {
   "name": "@synoi/start",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "SynOI Gateway bootstrap — `npx @synoi/start init` drops a docker-compose.yml + .env template into your current directory; `npx @synoi/start link` pairs a headless install with your SynOI account via RFC 8628 device flow.",
   "license": "Apache-2.0",
   "homepage": "https://synoi.systems/quickstart",
@@ -8,7 +8,13 @@
     "type": "git",
     "url": "git+https://github.com/synoi/synoi-quickstart.git"
   },
-  "keywords": ["synoi", "gateway", "llm", "quickstart", "ai-tools"],
+  "keywords": [
+    "synoi",
+    "gateway",
+    "llm",
+    "quickstart",
+    "ai-tools"
+  ],
   "bin": {
     "synoi-start": "bin/synoi-start.js"
   },
