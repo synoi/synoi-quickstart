@@ -7,7 +7,7 @@
 
 services:
   gateway:
-    image: ghcr.io/foundationx/synoi-gateway:latest
+    image: ghcr.io/synoi/synoi-gateway:latest
     container_name: synoi-gateway
     restart: unless-stopped
     pull_policy: always
